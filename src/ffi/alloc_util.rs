@@ -41,7 +41,7 @@ impl BrotliAlloc for BrotliSubclassableAllocator {}
 unsafe impl Send for BrotliSubclassableAllocator {}
 
 #[cfg(not(feature = "safe"))]
-unsafe impl<T: Clone + Default> Send for SendableMemoryBlock<T> {}
+unsafe impl<T: Clone + Default + Send> Send for SendableMemoryBlock<T> {}
 
 #[cfg(not(feature = "std"))]
 #[cfg(feature = "no-stdlib-ffi-binding")]
