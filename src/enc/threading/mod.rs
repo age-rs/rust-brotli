@@ -1,7 +1,9 @@
 use alloc::{Allocator, SliceWrapper, SliceWrapperMut};
+#[cfg(feature = "std")]
+use core::any;
 use core::marker::PhantomData;
+use core::mem;
 use core::ops::Range;
-use core::{any, mem};
 #[cfg(feature = "std")]
 use std;
 

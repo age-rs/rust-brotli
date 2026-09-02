@@ -27,7 +27,7 @@ pub unsafe extern "C" fn instantiate_functions(must_be_null: *const u8) {
     if !must_be_null.is_null() {
         let _ = brotli::ffi::compressor::BrotliEncoderVersion();
         let _ = brotli::ffi::decompressor::CBrotliDecoderCreateInstance(None, None, null_mut());
-        let _ = brotli::ffi::decompressor::CBrotliDecoderSetParameter(null_mut(), brotli::ffi::decompressor::ffi::interface::BrotliDecoderParameter::BROTLI_DECODER_PARAM_DISABLE_RING_BUFFER_REALLOCATION, 0);
+        let _ = brotli::ffi::decompressor::CBrotliDecoderSetParameter(null_mut(), brotli::ffi::decompressor::ffi::interface::BrotliDecoderParameter::BROTLI_DECODER_PARAM_DISABLE_RING_BUFFER_REALLOCATION as i32, 0);
         let _ = brotli::ffi::decompressor::CBrotliDecoderDecompressStream(
             null_mut(),
             null_mut(),

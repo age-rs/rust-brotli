@@ -1,5 +1,9 @@
 #![cfg_attr(feature = "benchmark", feature(test))]
 
+// The seccomp decompress path builds a calloc-backed stack allocator with
+// declare_stack_allocator_struct!/define_allocator_memory_pool!; those macros
+// are only in scope with macro_use, which would otherwise be unused here.
+#[cfg_attr(feature = "seccomp", macro_use)]
 extern crate alloc_no_stdlib;
 extern crate brotli;
 extern crate brotli_decompressor;
@@ -219,6 +223,11 @@ extern "C" {
 const PR_SET_SECCOMP: i32 = 22;
 #[cfg(feature = "seccomp")]
 const SECCOMP_MODE_STRICT: u32 = 1;
+
+#[cfg(feature = "seccomp")]
+use alloc_no_stdlib::{bzero, AllocatedStackMemory, StackAllocator};
+#[cfg(feature = "seccomp")]
+use brotli::HuffmanCode;
 
 #[cfg(feature = "seccomp")]
 declare_stack_allocator_struct!(CallocAllocatedFreelist, 8192, calloc);

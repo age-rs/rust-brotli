@@ -1,4 +1,6 @@
-use alloc::{Allocator, SliceWrapperMut};
+#[cfg(feature = "std")]
+use alloc::Allocator;
+use alloc::SliceWrapperMut;
 #[cfg(feature = "std")]
 use std::io;
 #[cfg(feature = "std")]
@@ -10,6 +12,7 @@ use brotli_decompressor::CustomRead;
 #[cfg(feature = "std")]
 pub use brotli_decompressor::{IntoIoReader, IoReaderWrapper, IoWriterWrapper};
 
+#[cfg(feature = "std")]
 use super::backward_references::BrotliEncoderParams;
 use super::combined_alloc::BrotliAlloc;
 use super::encode::{
@@ -17,6 +20,7 @@ use super::encode::{
     BrotliEncoderStateStruct,
 };
 use super::interface;
+#[cfg(feature = "std")]
 use crate::enc::combined_alloc::allocate;
 
 #[cfg(feature = "std")]

@@ -1432,7 +1432,10 @@ fn MakeUncompressedStream(input: &[u8], input_size: usize, output: &mut [u8]) ->
     result
 }
 
-#[cfg_attr(not(feature = "ffi-api"), cfg(test))]
+#[cfg_attr(
+    any(not(feature = "ffi-api"), feature = "safe"),
+    cfg(all(test, feature = "std"))
+)]
 pub(crate) fn encoder_compress<
     Alloc: BrotliAlloc,
     MetablockCallback: FnMut(

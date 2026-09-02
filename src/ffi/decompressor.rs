@@ -9,11 +9,16 @@ pub unsafe extern "C" fn CBrotliDecoderCreateInstance(
     ffi::BrotliDecoderCreateInstance(alloc_func, free_func, opaque)
 }
 
+// Mirrors the C prototype: BROTLI_BOOL BrotliDecoderSetParameter(state, param,
+// value). The selector is taken as a plain i32 rather than the Rust enum so an
+// unrecognized value coming from C cannot form an invalid discriminant; it is
+// reported by returning BROTLI_FALSE instead. Rust callers can pass
+// `BrotliDecoderParameter::... as i32`.
 pub unsafe extern "C" fn CBrotliDecoderSetParameter(
     state_ptr: *mut ffi::BrotliDecoderState,
-    selector: ffi::interface::BrotliDecoderParameter,
+    selector: i32,
     value: u32,
-) {
+) -> i32 {
     ffi::BrotliDecoderSetParameter(state_ptr, selector, value)
 }
 

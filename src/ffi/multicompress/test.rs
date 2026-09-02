@@ -3,6 +3,8 @@
 
 use core;
 
+use std::panic;
+
 use super::*;
 use crate::enc::encode::BrotliEncoderParameter;
 

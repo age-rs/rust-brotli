@@ -3,7 +3,63 @@
 [![crates.io](https://img.shields.io/crates/v/brotli.svg)](https://crates.io/crates/brotli)
 [![Build Status](https://travis-ci.org/dropbox/rust-brotli.svg?branch=master)](https://travis-ci.org/dropbox/rust-brotli)
 
-# What's new in 8.0.4
+# What's new in 9.0.0
+
+* Custom dictionaries. Depends on brotli-decompressor 6.0.0, whose dictionary
+  support is re-exported from this crate, so `brotli::Decompressor`,
+  `brotli::DecompressorWriter` and `brotli::BrotliState` all gain
+  `attach_dictionary` and `attach_serialized_dictionary`:
+  * `attach_dictionary` takes a raw LZ77 prefix dictionary and is the
+    equivalent of the C `BrotliDecoderAttachDictionary` with
+    `BROTLI_SHARED_DICTIONARY_RAW`. Up to 15 may be attached, and they must be
+    attached before the first read or write.
+  * Dictionaries now live in their own buffers (the C implementation's
+    "compound dictionary" scheme) rather than being copied into the ring
+    buffer, so they stay addressable after the ring buffer wraps. Streams where
+    output plus dictionary exceed the window decode correctly, and dictionaries
+    larger than the window are no longer truncated.
+  * `attach_serialized_dictionary` accepts the serialized shared dictionary
+    container (magic `0x91 0x00`) from
+    draft-vandevenne-shared-brotli-format, including embedded LZ77 prefix
+    dictionaries, custom word lists, custom transform lists and context-based
+    dictionary selection.
+* Breaking: the allocator crates move a major version, to alloc-no-stdlib 3.x
+  and alloc-stdlib 0.3.x. alloc-no-stdlib's `Allocator`/`SliceWrapper` traits
+  are part of the public API of this crate and of brotli-decompressor, so a
+  crate that passes its own allocator to rust-brotli must move to the same
+  generation: with a split, an allocator built against 2.x no longer satisfies
+  the 3.x `Allocator` bound. The dependency ranges are pinned so that the
+  resolver cannot span the major.
+* Breaking, FFI: `BrotliDecoderSetParameter` now returns `BROTLI_BOOL` and
+  takes the parameter selector as an `int`, matching the prototype in
+  `c/brotli/decode.h` and the C library. It returns false for an unrecognized
+  selector instead of forming an invalid enum discriminant at the ABI boundary.
+  C callers that ignored the return value are unaffected; Rust callers of
+  `CBrotliDecoderSetParameter` should pass `BrotliDecoderParameter::... as i32`.
+* New non-default `portable-float` feature that makes encoder output
+  target-independent, so the same input compresses to byte-identical output on
+  every target. It routes the cost estimators' `log2`/`powf` onto the
+  table-driven implementations `no_std` builds already use, instead of the
+  platform libm, whose one-ULP differences could move a block-split boundary.
+  It is off by default because it changes the emitted bytes and costs about
+  0.006% of ratio.
+* The `safe` feature is now declared in `Cargo.toml`. The `cfg` had been
+  referenced from `src/ffi` since the FFI was added but was never listed, so it
+  could not actually be turned on. With it, the FFI drops the two `unsafe impl
+  Send` lines and the encoder and multicompress entry points that rely on them;
+  the decoder FFI is unaffected.
+* Fix #257: `SendableMemoryBlock<T>` in the FFI allocator no longer claims
+  `Send` for a `T` that is not itself `Send`.
+* Fix #258: `BroCatli` recognizes a complete empty stream as soon as its
+  window, ISLAST and ISLASTEMPTY bits are buffered, rather than waiting for the
+  normal four- or five-byte prefix.
+* The `simd` feature builds on current nightly again (`Mask::to_int` was
+  renamed to `Mask::to_simd`).
+* The `seccomp` feature builds again: the calloc-backed allocator macros are
+  brought into scope in the `brotli` binary, and `alloc-no-stdlib`'s `unsafe`
+  feature, which gates them on 3.x, is enabled by it.
+
+## What's new in 8.0.4
 Fix: adjust versions of rust-decompressor and rust-alloc-no-stdlib and
 alloc-stdlib so the Allocator<> trait is identical for all associated crates.
 Return BrotliFileNotCraftedForConcatenation when a new stream header advertises more whole source bytes than have been buffered. This prevents the unsigned subtraction in shift_and_check_new_stream_header from underflowing on truncated metadata headers.
@@ -159,6 +215,41 @@ match brotli::BrotliDecompress(&mut io::stdin(), &mut io::stdout()) {
 }
 ```
 
+### With a custom dictionary
+
+A raw LZ77 prefix dictionary is attached before the first read (or the first
+write, for `DecompressorWriter`); up to 15 may be attached. The dictionary is
+handed over as the allocator's memory type, and `attach_dictionary` returns
+false if it could not be attached.
+
+```rust
+use brotli::enc::StandardAlloc;
+use brotli::{Allocator, Decompressor, SliceWrapperMut};
+
+let mut alloc = StandardAlloc::default();
+let mut dict = <StandardAlloc as Allocator<u8>>::alloc_cell(&mut alloc, dictionary.len());
+dict.slice_mut().clone_from_slice(dictionary);
+
+let mut input = brotli::Decompressor::new(&mut io::stdin(), 4096 /* buffer size */);
+assert!(input.attach_dictionary(dict));
+```
+
+The dictionary lives in its own buffer rather than in the ring buffer, so it
+stays addressable for the whole stream even when it is larger than the window or
+when the output outgrows the window.
+
+`attach_serialized_dictionary` takes the same kind of argument, but the bytes are
+a serialized shared dictionary container (magic `0x91 0x00`) which may carry an
+LZ77 prefix dictionary, a custom word list and a custom transform list.
+
+The matching binary tool flag is `-customdictionary=<file>`, on both compression
+and decompression:
+
+```
+brotli -c -customdictionary=dict.bin < plaintext > compressed.br
+brotli -customdictionary=dict.bin < compressed.br > plaintext
+```
+
 ### With manual memory management
 
 There are 3 steps to using brotli without stdlib
@@ -223,6 +314,21 @@ file, but with all the advantages of using safe rust (except in the FFI bindings
 The code also allows a wider range of options, including forcing the prediction mode
 (eg UTF8 vs signed vs MSB vs LSB) and changing the weight of the literal cost from 540
  to other values.
+
+Custom dictionaries are reachable from C as well: `brotli/decode.h` declares
+`BrotliDecoderAttachDictionary`, which takes a `BrotliSharedDictionaryType` of
+either `BROTLI_SHARED_DICTIONARY_RAW` or `BROTLI_SHARED_DICTIONARY_SERIALIZED`
+from `brotli/shared_dictionary.h`. As in the C library, the dictionary must be
+attached before decoding starts, ownership is not transferred, and the buffer
+must stay alive until the decoder instance is destroyed.
+
+```c
+BrotliDecoderState *state = BrotliDecoderCreateInstance(NULL, NULL, NULL);
+if (!BrotliDecoderAttachDictionary(state, BROTLI_SHARED_DICTIONARY_RAW,
+                                   dict_size, dict)) {
+  /* dictionary was corrupt, or the 15 dictionary limit was reached */
+}
+```
 
 ## Stream Concatenation
 

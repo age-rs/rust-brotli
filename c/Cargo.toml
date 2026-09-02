@@ -1,6 +1,6 @@
 [package]
 name = "brotli-ffi"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Daniel Reiter Horn <danielrh@dropbox.com>", "The Brotli Authors"]
 description = "A brotli compressor and decompressor that with an interface exactly matching https://github.com/google/brotli. All included code is safe except the thin exported C-compatible functions."
 license = "BSD-3-Clause OR MIT"
@@ -11,6 +11,8 @@ keywords = ["brotli", "decompression", "lz77", "huffman", "nostd"]
 categories = ["compression", "no-std", "external-ffi-bindings"]
 readme = "README.md"
 autobins = false
+# Matches the brotli crate; also silences cargo's unspecified-edition warning.
+edition = "2015"
 
 [lib]
 path = "src/lib.rs"
@@ -20,7 +22,7 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 lto = true
 
 [dependencies]
-"brotli" = { version = "~8.0", default-features = false, features = ["ffi-api"] }
+"brotli" = { version = "~9.0", default-features = false, features = ["ffi-api"] }
 
 [features]
 default = ["std"]

@@ -1,10 +1,12 @@
 #![cfg(not(feature = "safe"))]
 
 use core;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "pass-through-ffi-panics")))]
 use std::io::Write;
 #[cfg(feature = "std")]
-use std::{io, panic, thread};
+use std::panic;
+#[cfg(all(feature = "std", not(feature = "pass-through-ffi-panics")))]
+use std::{io, thread};
 
 use brotli_decompressor::ffi::alloc_util::SubclassableAllocator;
 use brotli_decompressor::ffi::interface::{

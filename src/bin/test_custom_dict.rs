@@ -331,3 +331,34 @@ fn test_custom_dict_for_multithreading() {
         assert_eq!(output.data().len(), 48563); // as opposed to 46487 with standard settings
     }
 }
+
+// brotli-decompressor 6.0.0 keeps an attached dictionary in its own buffer
+// instead of copying it into the ring buffer, so a dictionary plus output that
+// together exceed the window stays addressable for the whole stream. Exercise
+// that path through the `brotli` crate's re-exported Decompressor, which is how
+// callers of this crate reach it.
+#[cfg(feature = "std")]
+#[test]
+fn test_attach_dictionary_exceeding_window() {
+    use super::brotli::enc::StandardAlloc;
+    use super::brotli::{Allocator, Decompressor, SliceWrapperMut};
+
+    let dict = &ALICE[..65536];
+    let plaintext = &ALICE[65536..];
+    let mut params = BrotliEncoderParams::default();
+    params.quality = 11;
+    // Window is 64KiB, so dictionary + output is more than twice the window.
+    params.lgwin = 16;
+    let mut raw = UnlimitedBuffer::new(plaintext);
+    let mut br = UnlimitedBuffer::new(&[]);
+    super::compress(&mut raw, &mut br, 4096, &params, dict, 1).unwrap();
+
+    let mut alloc = StandardAlloc::default();
+    let mut dict_mem = <StandardAlloc as Allocator<u8>>::alloc_cell(&mut alloc, dict.len());
+    dict_mem.slice_mut().clone_from_slice(dict);
+    let mut decompressor = Decompressor::new(&br.data[..], 4096);
+    assert!(decompressor.attach_dictionary(dict_mem));
+    let mut rt = Vec::<u8>::new();
+    decompressor.read_to_end(&mut rt).unwrap();
+    assert_eq!(rt, plaintext);
+}

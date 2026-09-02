@@ -3,17 +3,19 @@ mod test;
 
 use alloc::SliceWrapper;
 use core::cmp::min;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "pass-through-ffi-panics")))]
 use std::io::Write;
 #[cfg(feature = "std")]
 use std::panic;
 
+#[cfg(feature = "std")]
+use brotli_decompressor;
 use brotli_decompressor::ffi::alloc_util::SubclassableAllocator;
 use brotli_decompressor::ffi::interface::{
     brotli_alloc_func, brotli_free_func, c_void, CAllocator,
 };
 use brotli_decompressor::ffi::{slice_from_raw_parts_or_nil, slice_from_raw_parts_or_nil_mut};
-use {brotli_decompressor, core, enc};
+use {core, enc};
 
 use super::alloc_util::BrotliSubclassableAllocator;
 use super::compressor;
